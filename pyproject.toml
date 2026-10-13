@@ -1,0 +1,10 @@
+[project]
+name = "mountaineering-eda"
+version = "0.1.0"
+description = "Exploratory analysis of mountaineering data"
+requires-python = ">=3.11" # Choose a range that matches your intended Python support.
+dependencies = [
+    "duckdb",
+    "marimo",
+    "pandas",
+]
