@@ -1,0 +1,42 @@
+version: 2
+
+models:
+  - name: stg_peaks
+    description: "Cleaned peaks. One row per peak."
+    columns:
+      - name: peak_id
+        tests: [unique, not_null]
+      - name: climbing_status
+        tests:
+          - accepted_values:
+              arguments:
+                values: ["Climbed", "Unclimbed"]
+
+  - name: stg_expeditions
+    description: "Cleaned expeditions, typed, with a deterministic surrogate key."
+    columns:
+      - name: expedition_sk
+        tests: [unique, not_null]
+      - name: expedition_id
+        description: "Source id; NOT unique (KANG10101 collides across 1910/2010)."
+        tests: [not_null]
+      - name: season
+        tests:
+          - accepted_values:
+              arguments:
+                values: ["Spring", "Summer", "Autumn", "Winter", "Unknown"]
+              config:
+                where: "season is not null"
+
+  - name: stg_members
+    description: "Cleaned members, typed, with a deterministic surrogate key."
+    columns:
+      - name: member_sk
+        tests: [unique, not_null]
+      - name: sex
+        tests:
+          - accepted_values:
+              arguments:
+                values: ["M", "F"]
+              config:
+                where: "sex is not null"

@@ -1,0 +1,69 @@
+version: 2
+
+models:
+  - name: dim_peaks
+    description: "One row per peak."
+    columns:
+      - name: peak_id
+        description: "Natural primary key."
+        tests: [unique, not_null]
+
+  - name: fct_expeditions
+    description: "One row per expedition attempt, keyed by a surrogate key."
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [expedition_id, year]
+    columns:
+      - name: expedition_sk
+        description: "Surrogate primary key."
+        tests: [unique, not_null]
+      - name: expedition_id
+        description: "Source business key; deliberately NOT unique."
+        tests: [not_null]
+      - name: peak_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_peaks')
+                field: peak_id
+
+  - name: fct_members
+    description: "One row per person on an expedition, keyed by a surrogate key."
+    columns:
+      - name: member_sk
+        description: "Surrogate primary key."
+        tests: [unique, not_null]
+      - name: member_id
+        description: "Source business key; deliberately NOT unique."
+        tests: [not_null]
+      - name: expedition_sk
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('fct_expeditions')
+                field: expedition_sk
+
+  - name: bridge_first_ascent
+    description: "Many-to-many bridge from peaks to their first-ascent expeditions."
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [peak_id, expedition_sk]
+    columns:
+      - name: peak_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_peaks')
+                field: peak_id
+      - name: expedition_sk
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('fct_expeditions')
+                field: expedition_sk

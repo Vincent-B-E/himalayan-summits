@@ -1,0 +1,10 @@
+version: 2
+
+sources:
+  - name: raw
+    description: "Raw TidyTuesday CSVs loaded verbatim as text by transform/ingest.py."
+    schema: raw
+    tables:
+      - name: peaks
+      - name: expeditions
+      - name: members

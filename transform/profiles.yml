@@ -1,0 +1,11 @@
+# Local DuckDB target. No credentials, so this is safe to keep in the repo.
+# `path` is resolved relative to this file, so the warehouse lands at the
+# repo root. Override with DBT_DUCKDB_PATH if you want it elsewhere.
+mountaineering:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: "{{ env_var('DBT_DUCKDB_PATH', '../warehouse.duckdb') }}"
+      schema: main
+      threads: 4
