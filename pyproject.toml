@@ -1,10 +1,17 @@
 [project]
-name = "mountaineering-eda"
+name = "himalayan-summits"
 version = "0.1.0"
-description = "Exploratory analysis of mountaineering data"
-requires-python = ">=3.11" # Choose a range that matches your intended Python support.
+description = "Warehouse and EDA on the TidyTuesday Himalayan mountaineering dataset"
+requires-python = ">=3.12"
 dependencies = [
+    "altair",
+    "dbt-duckdb>=1.9",
     "duckdb",
     "marimo",
     "pandas",
 ]
+
+[tool.uv]
+# This is an application project, not a distributable package: uv should just
+# manage the environment and never try to build/install it as a wheel.
+package = false
