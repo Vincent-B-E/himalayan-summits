@@ -1,6 +1,10 @@
 # Local DuckDB target. No credentials, so this is safe to keep in the repo.
-# `path` is resolved relative to this file, so the warehouse lands at the
-# repo root. Override with DBT_DUCKDB_PATH if you want it elsewhere.
+#
+# IMPORTANT: DuckDB resolves `path` relative to the directory you launch dbt
+# from -- NOT relative to this file. Always run dbt from inside transform/ so
+# that `../warehouse.duckdb` lands at the repo root (the same warehouse that
+# ingest.py writes and notebooks/eda.py reads). Override with DBT_DUCKDB_PATH
+# if you want the file elsewhere.
 mountaineering:
   target: dev
   outputs:
