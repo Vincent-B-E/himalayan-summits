@@ -1,0 +1,12 @@
+version: 2
+
+seeds:
+  - name: country_aliases
+    description: "Canonicalization map for typos/variants in first-ascent country names."
+    columns:
+      - name: raw_country
+        description: "Raw token as it appears in stg_peaks.first_ascent_country."
+        tests: [unique, not_null]
+      - name: country
+        description: "Canonical country/name."
+        tests: [not_null]

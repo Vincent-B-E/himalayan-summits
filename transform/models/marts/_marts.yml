@@ -8,6 +8,13 @@ models:
         description: "Natural primary key."
         tests: [unique, not_null]
 
+  - name: dim_countries
+    description: "One row per canonical first-ascent country (typos/variants normalized via the country_aliases seed)."
+    columns:
+      - name: country
+        description: "Natural primary key."
+        tests: [unique, not_null]
+
   - name: fct_expeditions
     description: "One row per expedition attempt, keyed by a surrogate key."
     tests:
@@ -47,7 +54,7 @@ models:
                 field: expedition_sk
 
   - name: bridge_first_ascent
-    description: "Many-to-many bridge from peaks to their first-ascent expeditions."
+    description: "Optional N:1 link from peaks to their first-ascent expedition. Each peak has at most one first-ascent expedition; one expedition may be credited with several peaks. The expedition_id-only join is not collision-proof for KANG10101 (no first-ascent peak points there today)."
     tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
@@ -67,3 +74,25 @@ models:
               arguments:
                 to: ref('fct_expeditions')
                 field: expedition_sk
+
+  - name: bridge_peak_first_ascent_country
+    description: "Many-to-many bridge crediting a peak's first ascent to each country in its (exploded) first_ascent_country list. Country totals fan out: sum across countries exceeds the number of first ascents, so use count(distinct peak_id) when mixing grains."
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [peak_id, country]
+    columns:
+      - name: peak_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_peaks')
+                field: peak_id
+      - name: country
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_countries')
+                field: country

@@ -4,6 +4,5 @@ select
     peak_alternative_name,
     height_metres,
     climbing_status,
-    first_ascent_year,
-    first_ascent_country
+    first_ascent_year
 from {{ ref('stg_peaks') }}

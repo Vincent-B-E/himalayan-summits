@@ -1,34 +1,32 @@
-import marimo as mo
+import marimo
 
 __generated_with = "0.25.2"
-
-app = mo.App(width="medium")
+app = marimo.App(width="medium")
 
 
 @app.cell
 def _():
     import marimo as mo
-    return mo
+
+    return (mo,)
 
 
-@app.cell
-def _():
-    mo.md(
-        r"""
-        # Himalayan Summits — EDA on the warehouse
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    # Himalayan Summits — EDA on the warehouse
 
-        This notebook is the **consumer** side of the project. The heavy lifting
-        (cleaning, typing, surrogate keys, referential integrity) already happened
-        upstream in the dbt pipeline under `transform/`; here we simply query the
-        finished `warehouse.duckdb`.
+    This notebook is the **consumer** side of the project. The heavy lifting
+    (cleaning, typing, surrogate keys, referential integrity) already happened
+    upstream in the dbt pipeline under `transform/`; here we simply query the
+    finished `warehouse.duckdb`.
 
-        **How to read it.** Every analytical table below is produced by a SQL cell
-        (`mo.sql`) running *inside DuckDB*, against the marts built by dbt. The
-        aggregate that leaves the warehouse is small; Altair then renders it
-        declaratively in the browser. The warehouse does the crunching, Python
-        stays out of the way.
-        """
-    )
+    **How to read it.** Every analytical table below is produced by a SQL cell
+    (`mo.sql`) running *inside DuckDB*, against the marts built by dbt. The
+    aggregate that leaves the warehouse is small; Altair then renders it
+    declaratively in the browser. The warehouse does the crunching, Python
+    stays out of the way.
+    """)
     return
 
 
@@ -51,21 +49,19 @@ def _():
     def as_flag(col):
         return f"CASE WHEN {col} = 'TRUE' THEN 1 ELSE 0 END"
 
-    return Path, duckdb, alt, con, warehouse, as_flag
+    return alt, as_flag, con
 
 
 @app.cell
 def _(mo):
-    mo.md(
-        r"""
-        ## The shape of the data
+    mo.md(r"""
+    ## The shape of the data
 
-        Four marts. `dim_peaks` is the dimension; the rest are facts keyed by
-        surrogate keys (`*_sk`). `bridge_first_ascent` is the many-to-many link
-        that lets one expedition be the first ascent of several peaks — the
-        relationship the original single-column design could not express.
-        """
-    )
+    Four marts. `dim_peaks` is the dimension; the rest are facts keyed by
+    surrogate keys (`*_sk`). `bridge_first_ascent` is the many-to-many link
+    that lets one expedition be the first ascent of several peaks — the
+    relationship the original single-column design could not express.
+    """)
     return
 
 
@@ -78,33 +74,21 @@ def _(con, mo):
             UNION ALL SELECT 'members',       count(*) FROM main.fct_members
             UNION ALL SELECT 'first_ascents', count(*) FROM main.bridge_first_ascent
         """,
-        engine=con,
-        output=False,
+        engine=con
     )
-    mo.md(
-        f"""
-        | Mart | Rows |
-        | --- | ---: |
-        | peaks | {int(overview.rows[overview.mart == 'peaks'].iloc[0]):,} |
-        | expeditions | {int(overview.rows[overview.mart == 'expeditions'].iloc[0]):,} |
-        | members | {int(overview.rows[overview.mart == 'members'].iloc[0]):,} |
-        | first_ascents | {int(overview.rows[overview.mart == 'first_ascents'].iloc[0]):,} |
-        """
-    )
-    return overview
+    overview
+    return
 
 
 @app.cell
 def _(mo):
-    mo.md(
-        r"""
-        ## 1. Peaks: climbed vs unclimbed
+    mo.md(r"""
+    ## 1. Peaks: climbed vs unclimbed
 
-        Of 468 surveyed peaks, most have been climbed. The unclimbed remainder
-        skews high and remote — the tallest unclimbed peaks are the ones that
-        still resist a documented ascent.
-        """
-    )
+    Of 468 surveyed peaks, most have been climbed. The unclimbed remainder
+    skews high and remote — the tallest unclimbed peaks are the ones that
+    still resist a documented ascent.
+    """)
     return
 
 
@@ -123,7 +107,7 @@ def _(alt, con, mo):
 
     chart = (
         alt.Chart(status)
-        .mark_bar(cornerRadius=4)
+        .mark_bar()
         .encode(
             x=alt.X("peaks:Q", title="Number of peaks"),
             y=alt.Y("climbing_status:N", title=None, sort="-x"),
@@ -133,21 +117,19 @@ def _(alt, con, mo):
                 alt.Tooltip("peaks:Q", title="Peaks", format=","),
             ],
         )
-        .properties(height=140, title="Climbing status of all 468 peaks")
+        .properties(height=140,title="Climbing status of all 468 peaks")
     )
     mo.vstack([chart, mo.md(f"**{int(status.peaks.sum()):,}** peaks surveyed.")])
-    return status
+    return
 
 
 @app.cell
 def _(mo):
-    mo.md(
-        r"""
-        Height distribution, split by climbing status. Unclimbed peaks cluster
-        toward the higher end — altitude and remoteness are exactly what make a
-        peak hard to put a documented ascent on.
-        """
-    )
+    mo.md(r"""
+    Height distribution, split by climbing status. Unclimbed peaks cluster
+    toward the higher end — altitude and remoteness are exactly what make a
+    peak hard to put a documented ascent on.
+    """)
     return
 
 
@@ -188,20 +170,19 @@ def _(alt, con, mo):
         .properties(height=220, title="Peak heights by climbing status")
     )
     height_chart
-    return heights
+    return
 
 
 @app.cell
 def _(mo):
-    mo.md(
-        r"""
-        ## 2. Expedition outcomes over time
+    mo.md(r"""
+    ## 2. Expedition outcomes over time
 
-        The classic success story: as gear, forecasting, and experience improved,
-        the share of expeditions that reached their main peak rose steadily across
-        a century of climbing (1905–2019).
-        """
-    )
+    When expeditions *do* end without success, what stops them? Weather and
+    conditions dominate; illness and technical difficulty trail; accidents
+    (death or serious injury) are rarer but real. This is the terminations
+    breakdown across all non-success outcomes.
+    """)
     return
 
 
@@ -238,19 +219,17 @@ def _(alt, con, mo):
         .properties(height=260, title="Expeditions reaching their main peak, by decade")
     )
     line
-    return outcomes
+    return
 
 
 @app.cell
 def _(mo):
-    mo.md(
-        r"""
-        When expeditions *do* end without success, what stops them? Weather and
-        conditions dominate; illness and technical difficulty trail; accidents
-        (death or serious injury) are rarer but real. This is the terminations
-        breakdown across all non-success outcomes.
-        """
-    )
+    mo.md(r"""
+    When expeditions *do* end without success, what stops them? Weather and
+    conditions dominate; illness and technical difficulty trail; accidents
+    (death or serious injury) are rarer but real. This is the terminations
+    breakdown across all non-success outcomes.
+    """)
     return
 
 
@@ -282,20 +261,18 @@ def _(alt, con, mo):
         .properties(height=240, title="Why expeditions did not reach the main peak")
     )
     reason_chart
-    return reasons
+    return
 
 
 @app.cell
 def _(mo):
-    mo.md(
-        r"""
-        ## 3. Oxygen usage over time
+    mo.md(r"""
+    ## 3. Oxygen usage over time
 
-        Supplemental oxygen transforms high-altitude climbing. Its use rose
-        sharply from mid-century, plateaued, then — after the commercialized
-        1990s boom — began a gradual decline as climbers pursued purer styles.
-        """
-    )
+    Supplemental oxygen transforms high-altitude climbing. Its use rose
+    sharply from mid-century, plateaued, then — after the commercialized
+    1990s boom — began a gradual decline as climbers pursued purer styles.
+    """)
     return
 
 
@@ -332,21 +309,19 @@ def _(alt, con, mo):
         .properties(height=260, title="Expeditions using supplemental oxygen, by decade")
     )
     oxygen_chart
-    return oxygen
+    return
 
 
 @app.cell
 def _(mo):
-    mo.md(
-        r"""
-        ## 4. Member risk & fatality
+    mo.md(r"""
+    ## 4. Member risk & fatality
 
-        Risk is not evenly distributed. Hired staff (guides, Sherpas, and porters)
-        carry a substantially higher fatality rate than the expedition members who
-        hire them — the starkest equity story in the dataset. Filtering on the
-        controls below re-draws the chart from the warehouse.
-        """
-    )
+    Risk is not evenly distributed. Hired staff (guides, Sherpas, and porters)
+    carry a substantially higher fatality rate than the expedition members who
+    hire them — the starkest equity story in the dataset. Filtering on the
+    controls below re-draws the chart from the warehouse.
+    """)
     return
 
 
@@ -358,7 +333,7 @@ def _(mo):
         label="Show:",
     )
     hired_filter
-    return hired_filter
+    return (hired_filter,)
 
 
 @app.cell
@@ -412,7 +387,7 @@ def _(alt, as_flag, con, hired_filter, mo):
         .properties(height=280, title=f"Fatality rate by high-point — {hired_filter.value}")
     )
     risk_chart
-    return risk, staff_clause
+    return
 
 
 @app.cell
@@ -445,36 +420,32 @@ def _(alt, as_flag, con, mo):
         .properties(height=240, title="Fatality rate: hired staff vs members")
     )
     hired_chart
-    return hired_vs_member
-
-
-@app.cell
-def _(mo):
-    mo.md(
-        r"""
-        Fatality risk climbs steeply with altitude. Above 8,000 m — the "death
-        zone" — the rate is roughly an order of magnitude higher than below 6,000 m,
-        and that is before separating hired staff from members.
-        """
-    )
     return
 
 
 @app.cell
 def _(mo):
-    mo.md(
-        r"""
-        ## 5. First-ascent history
+    mo.md(r"""
+    Fatality risk climbs steeply with altitude. Above 8,000 m — the "death
+    zone" — the rate is roughly an order of magnitude higher than below 6,000 m,
+    and that is before separating hired staff from members.
+    """)
+    return
 
-        The `bridge_first_ascent` table links each peak to the expedition that first
-        stood on it. Because it is a proper many-to-many bridge, an expedition that
-        first ascended *several* peaks appears once per peak — so the bridge has
-        333 rows but only 332 distinct expeditions. The single surplus row is the
-        1962 Sharphu expedition (`SPH462101`), which is credited with two summits
-        (Sharphu IV and Nupchu). A single-column design could not have expressed
-        this without duplicating or dropping a record.
-        """
-    )
+
+@app.cell
+def _(mo):
+    mo.md(r"""
+    ## 5. First-ascent history
+
+    The `bridge_first_ascent` table links each peak to the expedition that first
+    stood on it. Because it is a proper many-to-many bridge, an expedition that
+    first ascended *several* peaks appears once per peak — so the bridge has
+    333 rows but only 332 distinct expeditions. The single surplus row is the
+    1962 Sharphu expedition (`SPH462101`), which is credited with two summits
+    (Sharphu IV and Nupchu). A single-column design could not have expressed
+    this without duplicating or dropping a record.
+    """)
     return
 
 
@@ -509,23 +480,21 @@ def _(alt, con, mo):
         .properties(height=250, title="Documented first ascents, by decade")
     )
     fa_chart
-    return first_ascents, fa_by_decade
+    return (first_ascents,)
 
 
 @app.cell
 def _(mo):
-    mo.md(
-        r"""
-        Which nations are credited with first ascents? The counts reflect who has
-        historically been credited in the record — an editorial and political
-        artifact of the source data as much as a sporting one.
-        """
-    )
+    mo.md(r"""
+    Which nations are credited with first ascents? The counts reflect who has
+    historically been credited in the record — an editorial and political
+    artifact of the source data as much as a sporting one.
+    """)
     return
 
 
 @app.cell
-def _(alt, first_ascents, mo):
+def _(alt, first_ascents):
     top_countries = (
         first_ascents[first_ascents.country.notna()]
         .groupby("country")
@@ -546,23 +515,6 @@ def _(alt, first_ascents, mo):
         .properties(height=300, title="Top 10 countries credited with first ascents")
     )
     country_chart
-    return top_countries
-
-
-@app.cell
-def _(mo):
-    mo.md(
-        r"""
-        ---
-        ### Where this fits
-
-        This notebook is deliberately *read-only* and *thin*. All the engineering
-        decisions — surrogate keys over the non-unique `expedition_id`, the `NA`
-        sentinel, the many-to-many first-ascent bridge, enforced referential
-        integrity via dbt tests — live upstream in `transform/`. Query the marts
-        here; change the logic there.
-        """
-    )
     return
 
 
