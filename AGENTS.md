@@ -22,7 +22,7 @@ uv sync
 # Build the warehouse
 uv run python transform/ingest.py                              # raw CSVs -> raw.* (local-first)
 cd transform && uv run dbt deps --profiles-dir .              # install dbt_utils
-cd transform && uv run dbt build --profiles-dir .             # staging + marts + tests
+cd transform && uv run dbt build --profiles-dir .             # seeds + models + tests
 
 # EDA notebook
 uv run marimo edit notebooks/eda.py                            # interactive
@@ -53,17 +53,30 @@ project builds **offline** and is immune to URL rot.
 schema:
 
 - `dim_peaks` (PK `peak_id`) — the dimension.
+- `dim_countries` (PK `country`) — canonical first-ascent countries.
 - `fct_expeditions` (PK `expedition_sk`, business key `expedition_id`, FK
   `peak_id`, unique `(expedition_id, year)`) — fact.
 - `fct_members` (PK `member_sk`, business key `member_id`, FK `expedition_sk`)
   — fact.
-- `bridge_first_ascent` (PK `(peak_id, expedition_sk)`, FKs to both) — the
-  many-to-many link letting one expedition be the first ascent of several peaks.
+- `bridge_first_ascent` (PK `(peak_id, expedition_sk)`, FKs to both) — optional
+  N:1 link: each peak has at most one first-ascent expedition, while one
+  expedition may be credited with several peaks.
+- `bridge_peak_first_ascent_country` (PK `(peak_id, country)`, FKs to both) —
+  many-to-many bridge exploding the comma-separated first-ascent country list.
 
 `expedition_id` is **not unique** in the source: `KANG10101` collides because
 the id encodes only a 2-digit year (1910 vs 2010). Surrogate keys retain every
 record while leaving the source ids as non-unique business keys; `members.year`
 is used transiently to disambiguate the colliding members at load time.
+
+`first_ascent_country` is multi-valued in the source (comma-separated; 156 peaks
+list 2+ countries). It is exploded into `bridge_peak_first_ascent_country` and
+normalized via the `country_aliases` seed (`Inida`→`India`, `Netherands`→
+`Netherlands`, `Swiss`→`Switzerland`, `US`→`USA`); historical labels (`W
+Germany`, `Yugoslavia`, `Russia`) are preserved. Country totals **fan out** — a
+peak with N credited countries contributes to N groups — so the sum across
+countries exceeds the number of first ascents; use `count(distinct peak_id)`
+when mixing grains. The raw column is not exposed on `dim_peaks`.
 
 - `"NA"` string sentinels in the CSVs become real `NULL`; denormalized peak
   columns are dropped; `*year*`/`age`/`*_metres` cast to `INTEGER`, `*_date` to
@@ -81,12 +94,16 @@ schema; dbt then does the T in SQL.
 Layout:
 
 - `data/` — pinned raw CSVs + `SHA256SUMS` (committed; the offline failsafe).
+- `seeds/` — dbt-managed reference data, e.g. `country_aliases.csv`
+  (committed; loaded by `dbt seed`, or automatically by `dbt build`).
 - `ingest.py` — load `raw.{peaks,expeditions,members}` (idempotent,
   local-first, checksum-verified).
 - `macros/cleaning.sql` — `to_null` / `as_int` / `as_date` macros.
 - `models/staging/` (views) — `stg_peaks`, `stg_expeditions`, `stg_members`.
-- `models/marts/` (tables) — `dim_peaks`, `fct_expeditions`, `fct_members`,
-  `bridge_first_ascent`.
+- `models/intermediate/` (views) — `int_peak_first_ascent_countries` (split +
+  normalize the multi-valued country attribute).
+- `models/marts/` (tables) — `dim_peaks`, `dim_countries`, `fct_expeditions`,
+  `fct_members`, `bridge_first_ascent`, `bridge_peak_first_ascent_country`.
 - `tests/` — singular tests guarding the data quirks (e.g.
   `assert_kang10101_preserved`).
 
@@ -132,6 +149,8 @@ FOREIGN KEY`), so referential integrity is asserted with tests instead:
 - Commit `uv.lock` and `.python-version` (reproducibility, Python 3.12).
 - Commit `transform/data/` (the pinned raw CSVs + `SHA256SUMS`) — this is the
   offline failsafe, not a build artifact.
+- Commit `transform/seeds/` (dbt reference data, e.g. `country_aliases.csv`) —
+  it is source-of-truth config, not a build artifact.
 - Commit `transform/package-lock.yml` (pins installed dbt package versions).
 - Never commit `__marimo__/`, `marimo/_static/`, or `marimo/_lsp/`.
 - Never commit `warehouse.duckdb` or any `*.duckdb` / `*.duckdb.wal` — build
