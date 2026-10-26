@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.25.2"
+__generated_with = "0.25.1"
 app = marimo.App(width="medium")
 
 
@@ -57,10 +57,15 @@ def _(mo):
     mo.md(r"""
     ## The shape of the data
 
-    Four marts. `dim_peaks` is the dimension; the rest are facts keyed by
-    surrogate keys (`*_sk`). `bridge_first_ascent` is the many-to-many link
-    that lets one expedition be the first ascent of several peaks — the
-    relationship the original single-column design could not express.
+    Six marts: two dimensions, two facts, and two bridges. `dim_peaks` and
+    `dim_countries` describe the peaks and their canonical first-ascent
+    countries; `fct_expeditions` and `fct_members` hold attempts and the people
+    on them. `bridge_first_ascent` is an optional N:1 link from a peak to the
+    expedition that first climbed it — one expedition can be credited with
+    several peaks. `bridge_peak_first_ascent_country` is a true many-to-many
+    bridge, exploding each peak's comma-separated country list so a peak with
+    several credited nations appears once per country. The `country_aliases`
+    seed normalizes spelling variants before that bridge is built.
     """)
     return
 
@@ -69,10 +74,18 @@ def _(mo):
 def _(con, mo):
     overview = mo.sql(
         query="""
-            SELECT 'peaks'           AS mart, count(*) AS rows FROM main.dim_peaks
-            UNION ALL SELECT 'expeditions',   count(*) FROM main.fct_expeditions
-            UNION ALL SELECT 'members',       count(*) FROM main.fct_members
-            UNION ALL SELECT 'first_ascents', count(*) FROM main.bridge_first_ascent
+            WITH marts AS (
+                SELECT 'dim_peaks' AS mart, 'dimension' AS kind, count(*) AS rows
+                FROM main.dim_peaks
+                UNION ALL SELECT 'dim_countries', 'dimension', count(*) FROM main.dim_countries
+                UNION ALL SELECT 'fct_expeditions', 'fact', count(*) FROM main.fct_expeditions
+                UNION ALL SELECT 'fct_members', 'fact', count(*) FROM main.fct_members
+                UNION ALL SELECT 'bridge_first_ascent', 'bridge', count(*) FROM main.bridge_first_ascent
+                UNION ALL SELECT 'bridge_peak_first_ascent_country', 'bridge', count(*) FROM main.bridge_peak_first_ascent_country
+            )
+            SELECT mart, kind, rows
+            FROM marts
+            ORDER BY CASE kind WHEN 'dimension' THEN 1 WHEN 'fact' THEN 2 ELSE 3 END, mart
         """,
         engine=con
     )
@@ -176,55 +189,8 @@ def _(alt, con, mo):
 @app.cell
 def _(mo):
     mo.md(r"""
-    ## 2. Expedition outcomes over time
+    ## 2. Expedition terminations
 
-    When expeditions *do* end without success, what stops them? Weather and
-    conditions dominate; illness and technical difficulty trail; accidents
-    (death or serious injury) are rarer but real. This is the terminations
-    breakdown across all non-success outcomes.
-    """)
-    return
-
-
-@app.cell
-def _(alt, con, mo):
-    outcomes = mo.sql(
-        query="""
-            SELECT
-                (year / 10) * 10 AS decade,
-                sum(CASE WHEN termination_reason = 'Success (main peak)' THEN 1 ELSE 0 END) AS succeeded,
-                count(*) AS expeditions
-            FROM main.fct_expeditions
-            WHERE year >= 1900
-            GROUP BY 1
-            ORDER BY 1
-        """,
-        engine=con,
-        output=False,
-    )
-    outcomes["success_rate"] = outcomes.succeeded / outcomes.expeditions
-
-    line = (
-        alt.Chart(outcomes)
-        .mark_line(point=alt.OverlayMarkDef(color="#4c78a8"), color="#4c78a8")
-        .encode(
-            x=alt.X("decade:O", title="Decade", axis=alt.Axis(labelAngle=0)),
-            y=alt.Y("success_rate:Q", title="Success rate", axis=alt.Axis(format=".0%"), scale=alt.Scale(domain=[0, 1])),
-            tooltip=[
-                alt.Tooltip("decade:O", title="Decade"),
-                alt.Tooltip("success_rate:Q", title="Success rate", format=".1%"),
-                alt.Tooltip("expeditions:Q", title="Expeditions", format=","),
-            ],
-        )
-        .properties(height=260, title="Expeditions reaching their main peak, by decade")
-    )
-    line
-    return
-
-
-@app.cell
-def _(mo):
-    mo.md(r"""
     When expeditions *do* end without success, what stops them? Weather and
     conditions dominate; illness and technical difficulty trail; accidents
     (death or serious injury) are rarer but real. This is the terminations
@@ -281,7 +247,7 @@ def _(alt, con, mo):
     oxygen = mo.sql(
         query="""
             SELECT
-                (year / 10) * 10 AS decade,
+                (year // 10) * 10 AS decade,
                 sum(CASE WHEN oxygen_used = 'TRUE' THEN 1 ELSE 0 END) AS with_oxygen,
                 count(*) AS expeditions
             FROM main.fct_expeditions
@@ -319,8 +285,9 @@ def _(mo):
 
     Risk is not evenly distributed. Hired staff (guides, Sherpas, and porters)
     carry a substantially higher fatality rate than the expedition members who
-    hire them — the starkest equity story in the dataset. Filtering on the
-    controls below re-draws the chart from the warehouse.
+    hire them — the starkest equity story in the dataset. The control beside
+    the risk chart re-draws it from the warehouse; the second chart compares
+    the two groups directly.
     """)
     return
 
@@ -332,7 +299,6 @@ def _(mo):
         value="All staff",
         label="Show:",
     )
-    hired_filter
     return (hired_filter,)
 
 
@@ -386,7 +352,14 @@ def _(alt, as_flag, con, hired_filter, mo):
         )
         .properties(height=280, title=f"Fatality rate by high-point — {hired_filter.value}")
     )
-    risk_chart
+
+    mo.hstack(
+        [hired_filter, risk_chart],
+        widths=[1, 5],
+        align="start",
+        justify="start",
+        gap=1,
+    )
     return
 
 
@@ -426,66 +399,7 @@ def _(alt, as_flag, con, mo):
 @app.cell
 def _(mo):
     mo.md(r"""
-    Fatality risk climbs steeply with altitude. Above 8,000 m — the "death
-    zone" — the rate is roughly an order of magnitude higher than below 6,000 m,
-    and that is before separating hired staff from members.
-    """)
-    return
-
-
-@app.cell
-def _(mo):
-    mo.md(r"""
     ## 5. First-ascent history
-
-    The `bridge_first_ascent` table links each peak to the expedition that first
-    stood on it. Because it is a proper many-to-many bridge, an expedition that
-    first ascended *several* peaks appears once per peak — so the bridge has
-    333 rows but only 332 distinct expeditions. The single surplus row is the
-    1962 Sharphu expedition (`SPH462101`), which is credited with two summits
-    (Sharphu IV and Nupchu). A single-column design could not have expressed
-    this without duplicating or dropping a record.
-    """)
-    return
-
-
-@app.cell
-def _(alt, con, mo):
-    first_ascents = mo.sql(
-        query="""
-            SELECT p.first_ascent_year AS year, p.first_ascent_country AS country
-            FROM main.bridge_first_ascent b
-            JOIN main.dim_peaks p ON p.peak_id = b.peak_id
-            WHERE p.first_ascent_year >= 1900
-        """,
-        engine=con,
-        output=False,
-    )
-
-    fa_by_decade = (
-        first_ascents.assign(decade=(first_ascents.year // 10 * 10).astype(int))
-        .groupby("decade")
-        .size()
-        .reset_index(name="first_ascents")
-    )
-
-    fa_chart = (
-        alt.Chart(fa_by_decade)
-        .mark_bar(cornerRadiusTopLeft=3, cornerRadiusTopRight=3, color="#b279a2")
-        .encode(
-            x=alt.X("decade:O", title="Decade", axis=alt.Axis(labelAngle=0)),
-            y=alt.Y("first_ascents:Q", title="First ascents recorded"),
-            tooltip=[alt.Tooltip("decade:O", title="Decade"), alt.Tooltip("first_ascents:Q", format=",")],
-        )
-        .properties(height=250, title="Documented first ascents, by decade")
-    )
-    fa_chart
-    return (first_ascents,)
-
-
-@app.cell
-def _(mo):
-    mo.md(r"""
     Which nations are credited with first ascents? The counts reflect who has
     historically been credited in the record — an editorial and political
     artifact of the source data as much as a sporting one.
@@ -494,18 +408,27 @@ def _(mo):
 
 
 @app.cell
-def _(alt, first_ascents):
-    top_countries = (
-        first_ascents[first_ascents.country.notna()]
-        .groupby("country")
-        .size()
-        .reset_index(name="first_ascents")
-        .sort_values("first_ascents", ascending=False)
-        .head(10)
+def _(con, mo):
+    first_ascents = mo.sql(
+        query="""
+        SELECT c.country, count(*) AS first_ascents
+        FROM main.bridge_peak_first_ascent_country c
+        JOIN main.dim_peaks p ON p.peak_id = c.peak_id
+        WHERE p.first_ascent_year >= 1900
+        GROUP BY c.country
+        ORDER BY first_ascents DESC, c.country
+        LIMIT 10
+        """,
+        engine=con,
+        output=False,
     )
+    return (first_ascents,)
 
+
+@app.cell
+def _(alt, first_ascents):
     country_chart = (
-        alt.Chart(top_countries)
+        alt.Chart(data=first_ascents)
         .mark_bar(cornerRadius=3, color="#72b7b2")
         .encode(
             x=alt.X("first_ascents:Q", title="First ascents"),
