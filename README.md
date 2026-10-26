@@ -24,7 +24,7 @@ Raw CSVs (pinned in-repo)
 - **Star schema design** — Dimensions (`dim_peaks`, `dim_countries`), facts (`fct_expeditions`, `fct_members`), and bridges (`bridge_first_ascent`, `bridge_peak_first_ascent_country`) with surrogate keys and enforced referential integrity via dbt tests.
 - **Handles messy real data**:
   - **ID collisions**: `expedition_id` is not unique (`KANG10101` appears for 1910 and 2010); surrogate keys (`expedition_sk`, `member_sk`) disambiguate records.
-  - **Multi-valued attributes**: `first_ascent_country` (comma-separated, 156 peaks with 2+ countries) is normalized via a dbt seed (`country_aliases`) and exploded into `bridge_peak_first_ascent_country`. Historical labels (`W Germany`, `Yugoslavia`, `Russia`) are preserved.
+  - **Multi-valued attributes**: `first_ascent_country` (comma-separated, 156 peaks with 2+ countries) is normalized via a dbt seed (`country_aliases`) and exploded into `bridge_peak_first_ascent_country`. Historical labels (`W Germany`, `Yugoslavia`) are preserved.
   - **Typos & variants**: Normalized with `country_aliases.csv` (`Inida` → `India`, `Netherands` → `Netherlands`, `Swiss` → `Switzerland`, `US` → `USA`).
   - **Data cleaning**: `"NA"` → `NULL`, `SPHU` → `SPHN`, booleans cast appropriately, dates/integers typed consistently.
 - **Data quality guards** — Singular dbt tests enforce invariants (e.g., both `KANG10101` expeditions preserved, complete country bridge coverage, no alias leaks).
